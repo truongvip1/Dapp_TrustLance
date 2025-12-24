@@ -1,9 +1,6 @@
 const hre = require("hardhat");
 const { ethers } = hre;
-
-// 👇 ĐÚNG ADDRESS BẠN ĐÃ DEPLOY LOCAL
-const ESCROW_ADDRESS   = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
-const MULTISIG_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const deployment = require("../deployments/localhost.json");
 
 async function main() {
   const [client, freelancer, arbiter1, arbiter2, arbiter3] =
@@ -16,11 +13,15 @@ async function main() {
   console.log("Arbiter 2  :", arbiter2.address);
   console.log("Arbiter 3  :", arbiter3.address);
 
-  const Escrow = await ethers.getContractFactory("FreelanceEscrow");
-  const escrow = Escrow.attach(ESCROW_ADDRESS);
+  const escrow = await ethers.getContractAt(
+    "FreelanceEscrow",
+    deployment.escrow
+  );
 
-  const MultiSig = await ethers.getContractFactory("DisputeMultiSig");
-  const multisig = MultiSig.attach(MULTISIG_ADDRESS);
+  const multisig = await ethers.getContractAt(
+    "DisputeMultiSig",
+    deployment.multisig
+  );
 
   /* --------------------------------------------------
    * 1. Freelancer accepts job
@@ -37,7 +38,7 @@ async function main() {
   console.log("✅ Work submitted");
 
   /* --------------------------------------------------
-   * 3. Fast-forward time (PASS DEADLINE)
+   * 3. Fast-forward time (pass deadline)
    * -------------------------------------------------- */
   console.log("\n⏩ Fast-forward time past deadline");
   await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 1]);
@@ -51,9 +52,9 @@ async function main() {
   console.log("⚠️ Dispute opened");
 
   /* --------------------------------------------------
-   * 5. Arbiters vote (2/3 → freelancer wins)
+   * 5. Arbiters vote (2/3 → PAY freelancer)
    * -------------------------------------------------- */
-  console.log("\n4️⃣ Arbiters vote (pay freelancer)");
+  console.log("\n4️⃣ Arbiters vote");
 
   await (await multisig.connect(arbiter1).vote(true)).wait();
   console.log("🗳️ Arbiter1 voted PAY freelancer");

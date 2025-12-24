@@ -823,3 +823,7 @@ video {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.input {
+  @apply px-2 py-2 border rounded-lg text-sm focus:outline-none focus:ring;
+}

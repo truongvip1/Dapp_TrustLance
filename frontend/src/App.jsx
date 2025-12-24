@@ -1,15 +1,39 @@
 import { useEffect, useState } from "react";
+import { ethers } from "ethers";
+
 import { connectWallet } from "./lib/ethereum";
-import { getFactory, getEscrow } from "./lib/contracts";
+import {
+  getFactory,
+  getEscrow,
+  getMultiSig,
+} from "./lib/contracts";
 
 import CreateJob from "./components/CreateJob";
 import JobList from "./components/JobList";
 import JobDetail from "./components/JobDetail";
 
+import {
+  FACTORY_ADDRESS,
+  MULTISIG_ADDRESS,
+} from "./config";
+
 function App() {
+  /* ----------------------------------
+   * WALLET / SIGNER
+   * ---------------------------------- */
   const [signer, setSigner] = useState(null);
   const [address, setAddress] = useState(null);
 
+  /* ----------------------------------
+   * CONTRACT CONTEXT
+   * ---------------------------------- */
+  const [factory, setFactory] = useState(null);
+  const [multisig, setMultisig] = useState(null);
+  const [arbiters, setArbiters] = useState([]);
+
+  /* ----------------------------------
+   * JOB STATE
+   * ---------------------------------- */
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [escrow, setEscrow] = useState(null);
@@ -24,18 +48,46 @@ function App() {
   }
 
   /* ----------------------------------
-   * LOAD JOB LIST FROM FACTORY
+   * LOAD FACTORY (READ-ONLY)
    * ---------------------------------- */
-  async function loadJobs() {
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const f = getFactory(provider);
+    setFactory(f);
+  }, []);
+
+  /* ----------------------------------
+   * LOAD MULTISIG (WRITE)
+   * ---------------------------------- */
+  useEffect(() => {
     if (!signer) return;
 
-    const factory = getFactory(signer);
+    async function loadMultisig() {
+      const m = getMultiSig(signer);
+      setMultisig(m);
+
+      const list = await m.getArbiters();
+      setArbiters(list);
+    }
+
+    loadMultisig();
+  }, [signer]);
+
+  /* ----------------------------------
+   * LOAD JOB LIST
+   * ---------------------------------- */
+  async function loadJobs() {
+    if (!factory) return;
+
+    const provider = factory.runner.provider;
     const jobAddresses = await factory.getAllJobs();
 
     const result = [];
 
     for (const addr of jobAddresses) {
-      const e = getEscrow(addr, signer);
+      const e = getEscrow(addr, provider);
 
       const [
         client,
@@ -68,15 +120,17 @@ function App() {
    * SELECT JOB
    * ---------------------------------- */
   async function selectJob(jobAddress) {
-    const job = jobs.find((j) => j.address === jobAddress);
-    const escrow = getEscrow(jobAddress, signer);
+    if (!signer) return;
+
+    const job = jobs.find(j => j.address === jobAddress);
+    const e = getEscrow(jobAddress, signer);
 
     setSelectedJob(job);
-    setEscrow(escrow);
+    setEscrow(e);
   }
 
   /* ----------------------------------
-   * REFRESH SINGLE JOB
+   * REFRESH SELECTED JOB
    * ---------------------------------- */
   async function refreshSelectedJob() {
     if (!escrow || !selectedJob) return;
@@ -95,12 +149,15 @@ function App() {
       status: Number(status),
     });
 
-    loadJobs(); // sync list
+    loadJobs();
   }
 
+  /* ----------------------------------
+   * INITIAL LOAD
+   * ---------------------------------- */
   useEffect(() => {
     loadJobs();
-  }, [signer]);
+  }, [factory]);
 
   /* ----------------------------------
    * UI
@@ -120,6 +177,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
+      <p className="text-xs text-gray-400">
+        Factory: {FACTORY_ADDRESS} <br />
+        MultiSig: {MULTISIG_ADDRESS}
+      </p>
+
       <div className="max-w-6xl mx-auto space-y-6">
 
         {/* HEADER */}
@@ -135,9 +197,9 @@ function App() {
         {/* CREATE JOB */}
         <CreateJob signer={signer} onCreated={loadJobs} />
 
-        {/* MAIN CONTENT */}
+        {/* MAIN */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
+
           {/* JOB LIST */}
           <div className="md:col-span-1">
             <JobList jobs={jobs} onSelect={selectJob} />
@@ -148,6 +210,8 @@ function App() {
             {selectedJob ? (
               <JobDetail
                 escrow={escrow}
+                multisig={multisig}
+                arbiters={arbiters}
                 job={selectedJob}
                 address={address}
                 refresh={refreshSelectedJob}

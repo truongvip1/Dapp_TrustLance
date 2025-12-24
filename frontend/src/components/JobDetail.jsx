@@ -1,21 +1,35 @@
 import { ethers } from "ethers";
 import { STATUS } from "../utils/status";
+import ArbiterPanel from "./ArbiterPanel";
 
 export default function JobDetail({
   escrow,
+  multisig,
   job,
   address,
+  arbiters,
   refresh,
 }) {
   const s = STATUS[job.status];
+
   const isClient = address === job.client;
   const isFreelancer = address === job.freelancer;
+  const isArbiter = arbiters
+    .map(a => a.toLowerCase())
+    .includes(address.toLowerCase());
+
+  const isOpen =
+    job.status === 0 &&
+    job.freelancer === ethers.ZeroAddress;
+
+  const isDisputed = job.status === 3; // DISPUTED
   const now = Date.now() / 1000;
 
   return (
     <div className="border rounded-xl p-6 space-y-4">
       <h2 className="text-xl font-bold">Job Detail</h2>
 
+      {/* STATUS */}
       <div className="flex gap-2">
         <span className={`px-2 py-1 rounded ${s.color}`}>
           {s.label}
@@ -27,16 +41,27 @@ export default function JobDetail({
         )}
       </div>
 
+      {/* INFO */}
       <div className="text-sm space-y-1">
         <p><b>Client:</b> {job.client}</p>
-        <p><b>Freelancer:</b> {job.freelancer || "None"}</p>
+
+        <p>
+          <b>Freelancer:</b>{" "}
+          {job.freelancer === ethers.ZeroAddress
+            ? "None"
+            : job.freelancer}
+        </p>
+
         <p><b>Amount:</b> {ethers.formatEther(job.amount)} ETH</p>
-        <p><b>Deadline:</b> {new Date(job.deadline * 1000).toLocaleString()}</p>
+        <p>
+          <b>Deadline:</b>{" "}
+          {new Date(job.deadline * 1000).toLocaleString()}
+        </p>
       </div>
 
-      {/* ACTIONS */}
+      {/* ACTIONS: CLIENT / FREELANCER */}
       <div className="space-y-2">
-        {job.status === 0 && !job.freelancer && (
+        {isOpen && (
           <button
             className="btn-primary"
             onClick={async () => {
@@ -86,6 +111,14 @@ export default function JobDetail({
           </>
         )}
       </div>
+
+      {/* 🧑‍⚖️ ARBITER PANEL */}
+      {isArbiter && isDisputed && (
+        <ArbiterPanel
+          multisig={multisig}
+          address={address}
+        />
+      )}
     </div>
   );
 }
