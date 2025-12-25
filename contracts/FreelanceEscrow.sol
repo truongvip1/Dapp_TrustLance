@@ -2,9 +2,10 @@
 pragma solidity ^0.8.20;
 
 contract FreelanceEscrow {
-    /* --------------------------------------------------
-     * STORAGE
-     * -------------------------------------------------- */
+    /* =====================================================
+                            STORAGE
+       =====================================================*/
+
     address public factory;
 
     address payable public client;
@@ -13,22 +14,34 @@ contract FreelanceEscrow {
     uint256 public amount;
     uint256 public deadline;
 
+    /// @notice DisputeMultiSig contract
     address public arbiter;
 
     enum Status {
         Created,
         Accepted,
         Submitted,
+        Disputed,
         Released,
-        Refunded,
-        Disputed
+        Refunded
     }
 
     Status public status;
 
-    /* --------------------------------------------------
-     * MODIFIERS
-     * -------------------------------------------------- */
+    /* =====================================================
+                            EVENTS
+       =====================================================*/
+
+    event JobAccepted(address indexed freelancer);
+    event WorkSubmitted();
+    event DisputeOpened();
+    event Released(address indexed freelancer, uint256 amount);
+    event Refunded(address indexed client, uint256 amount);
+
+    /* =====================================================
+                            MODIFIERS
+       =====================================================*/
+
     modifier onlyFactory() {
         require(msg.sender == factory, "Only factory");
         _;
@@ -39,21 +52,28 @@ contract FreelanceEscrow {
         _;
     }
 
+    modifier onlyFreelancer() {
+        require(msg.sender == freelancer, "Not freelancer");
+        _;
+    }
+
     modifier onlyArbiter() {
         require(msg.sender == arbiter, "Not arbiter");
         _;
     }
 
-    /* --------------------------------------------------
-     * CONSTRUCTOR
-     * -------------------------------------------------- */
+    /* =====================================================
+                            CONSTRUCTOR
+       =====================================================*/
+
     constructor() {
         factory = msg.sender;
     }
 
-    /* --------------------------------------------------
-     * INITIALIZATION (CALLED BY FACTORY)
-     * -------------------------------------------------- */
+    /* =====================================================
+                        INITIALIZATION
+       =====================================================*/
+
     function init(
         address _client,
         uint256 _deadline
@@ -68,85 +88,84 @@ contract FreelanceEscrow {
         status = Status.Created;
     }
 
-    /* --------------------------------------------------
-     * SETUP
-     * -------------------------------------------------- */
-    function setArbiter(address _arbiter) external onlyClient {
+    /* =====================================================
+                            SETUP
+       =====================================================*/
+
+    /// @notice Factory gắn DisputeMultiSig
+    function setArbiter(address _arbiter) external onlyFactory {
         require(arbiter == address(0), "Arbiter already set");
+        require(_arbiter != address(0), "Invalid arbiter");
+
         arbiter = _arbiter;
     }
 
-    /* --------------------------------------------------
-     * FREELANCER FLOW
-     * -------------------------------------------------- */
+    /* =====================================================
+                        FREELANCER FLOW
+       =====================================================*/
+
     function acceptJob() external {
         require(status == Status.Created, "Not open");
         require(freelancer == address(0), "Already accepted");
 
         freelancer = payable(msg.sender);
         status = Status.Accepted;
+
+        emit JobAccepted(msg.sender);
     }
 
-    function submitWork() external {
-        require(msg.sender == freelancer, "Not freelancer");
+    function submitWork() external onlyFreelancer {
         require(status == Status.Accepted, "Invalid state");
 
         status = Status.Submitted;
+        emit WorkSubmitted();
     }
 
-    /* --------------------------------------------------
-     * CLIENT FLOW
-     * -------------------------------------------------- */
+    /* =====================================================
+                        CLIENT FLOW
+       =====================================================*/
+
     function approveWork() external onlyClient {
-        require(status == Status.Submitted, "Not submitted");
+    require(status == Status.Submitted, "Not submitted");
+    require(block.timestamp <= deadline, "Deadline passed");
 
-        status = Status.Released;
-        _payFreelancer();
+    status = Status.Released;
+    _payFreelancer();
     }
 
-    function autoRelease() external onlyClient {
-        require(status == Status.Submitted, "Invalid state");
-        require(block.timestamp > deadline, "Deadline not reached");
 
-        status = Status.Released;
-        _payFreelancer();
-    }
-
-    function refundIfNoFreelancer() external onlyClient {
-        require(status == Status.Created, "Already accepted");
-
-        status = Status.Refunded;
-        _refundClient();
-    }
-
+    /// @notice Client mở dispute sau deadline
     function dispute() external onlyClient {
-        require(
-            status == Status.Accepted || status == Status.Submitted,
-            "Invalid state"
-        );
+        require(status == Status.Submitted, "Not submitted");
         require(block.timestamp > deadline, "Deadline not reached");
 
         status = Status.Disputed;
+        emit DisputeOpened();
     }
 
-    /* --------------------------------------------------
-     * DISPUTE RESOLUTION (MULTISIG)
-     * -------------------------------------------------- */
+    /* =====================================================
+                    DISPUTE RESOLUTION
+       =====================================================*/
+
+    /// @notice Called by DisputeMultiSig
     function resolveDispute(bool payFreelancer) external onlyArbiter {
         require(status == Status.Disputed, "No dispute");
 
         if (payFreelancer) {
             status = Status.Released;
             _payFreelancer();
+            emit Released(freelancer, amount);
         } else {
             status = Status.Refunded;
             _refundClient();
+            emit Refunded(client, amount);
         }
     }
 
-    /* --------------------------------------------------
-     * INTERNAL PAYMENTS
-     * -------------------------------------------------- */
+    /* =====================================================
+                        INTERNAL PAYMENTS
+       =====================================================*/
+
     function _payFreelancer() internal {
         (bool ok,) = freelancer.call{value: amount}("");
         require(ok, "Transfer failed");

@@ -19,13 +19,13 @@ import {
 
 function App() {
   /* ----------------------------------
-   * WALLET / SIGNER
+   * WALLET
    * ---------------------------------- */
   const [signer, setSigner] = useState(null);
   const [address, setAddress] = useState(null);
 
   /* ----------------------------------
-   * CONTRACT CONTEXT
+   * CONTRACTS
    * ---------------------------------- */
   const [factory, setFactory] = useState(null);
   const [multisig, setMultisig] = useState(null);
@@ -42,24 +42,23 @@ function App() {
    * CONNECT WALLET
    * ---------------------------------- */
   async function connect() {
-    const { signer, address } = await connectWallet();
-    setSigner(signer);
-    setAddress(address);
+    const res = await connectWallet();
+    if (!res) return;
+
+    setSigner(res.signer);
+    setAddress(res.address);
   }
 
   /* ----------------------------------
-   * LOAD FACTORY (READ-ONLY)
+   * INIT FACTORY (WRITE MODE)
    * ---------------------------------- */
   useEffect(() => {
-    if (!window.ethereum) return;
-
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const f = getFactory(provider);
-    setFactory(f);
-  }, []);
+    if (!signer) return;
+    setFactory(getFactory(signer));
+  }, [signer]);
 
   /* ----------------------------------
-   * LOAD MULTISIG (WRITE)
+   * INIT MULTISIG + ARBITERS
    * ---------------------------------- */
   useEffect(() => {
     if (!signer) return;
@@ -68,20 +67,24 @@ function App() {
       const m = getMultiSig(signer);
       setMultisig(m);
 
-      const list = await m.getArbiters();
-      setArbiters(list);
+      try {
+        const list = await m.getArbiters();
+        setArbiters(list);
+      } catch {
+        setArbiters([]);
+      }
     }
 
     loadMultisig();
   }, [signer]);
 
   /* ----------------------------------
-   * LOAD JOB LIST
+   * LOAD ALL JOBS (READ-ONLY)
    * ---------------------------------- */
   async function loadJobs() {
-    if (!factory) return;
+    if (!factory || !window.ethereum) return;
 
-    const provider = factory.runner.provider;
+    const provider = new ethers.BrowserProvider(window.ethereum);
     const jobAddresses = await factory.getAllJobs();
 
     const result = [];
@@ -123,10 +126,16 @@ function App() {
     if (!signer) return;
 
     const job = jobs.find(j => j.address === jobAddress);
+    if (!job) return;
+
     const e = getEscrow(jobAddress, signer);
 
-    setSelectedJob(job);
+    // reset old state (avoid stale UI)
+    setEscrow(null);
+    setSelectedJob(null);
+
     setEscrow(e);
+    setSelectedJob(job);
   }
 
   /* ----------------------------------
@@ -149,7 +158,7 @@ function App() {
       status: Number(status),
     });
 
-    loadJobs();
+    await loadJobs();
   }
 
   /* ----------------------------------
@@ -177,7 +186,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-gray-400 mb-2">
         Factory: {FACTORY_ADDRESS} <br />
         MultiSig: {MULTISIG_ADDRESS}
       </p>

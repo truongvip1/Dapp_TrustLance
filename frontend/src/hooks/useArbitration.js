@@ -1,64 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { ethers } from "ethers";
 
-export function useArbitration(multisig, address) {
+export function useArbitration(multisig, escrowAddr, address) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [hasVoted, setHasVoted] = useState(false);
   const [resolved, setResolved] = useState(false);
+
   const [votesForFreelancer, setVotesForFreelancer] = useState(0);
   const [votesForClient, setVotesForClient] = useState(0);
   const [required, setRequired] = useState(0);
 
-  async function refresh() {
-    if (!multisig) return;
+  const load = useCallback(async () => {
+    if (!multisig || !address) return;
 
     try {
-      const [
-        _hasVoted,
-        _resolved,
-        _votesForFreelancer,
-        _votesForClient,
-        _required,
-      ] = await Promise.all([
-        multisig.hasVoted(address),
-        multisig.resolved(),
-        multisig.votesForFreelancer(),
-        multisig.votesForClient(),
-        multisig.required(),
-      ]);
+      const addr = ethers.getAddress(address);
 
-      setHasVoted(_hasVoted);
-      setResolved(_resolved);
-      setVotesForFreelancer(Number(_votesForFreelancer));
-      setVotesForClient(Number(_votesForClient));
-      setRequired(Number(_required));
+      setHasVoted(await multisig.hasVoted(escrowAddr, addr));
+      setResolved(await multisig.resolved(escrowAddr));
+
+      const [f, c, r] = await multisig.getVotes(escrowAddr);
+      setVotesForFreelancer(Number(f));
+      setVotesForClient(Number(c));
+      setRequired(Number(r));
     } catch (e) {
       console.error(e);
     }
-  }
+  }, [multisig, escrowAddr, address]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function vote(payFreelancer) {
-    if (!multisig) return;
-
     try {
       setLoading(true);
       setError(null);
 
-      const tx = await multisig.vote(payFreelancer);
+      const tx = await multisig.vote(escrowAddr, payFreelancer);
       await tx.wait();
 
-      await refresh();
-    } catch (err) {
-      setError(err.reason || err.message);
+      // 🔥 FIX QUAN TRỌNG NHẤT
+      await load();
+    } catch (e) {
+      setError(e.reason || e.message);
     } finally {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    refresh();
-  }, [multisig, address]);
 
   return {
     vote,
@@ -69,6 +60,5 @@ export function useArbitration(multisig, address) {
     votesForFreelancer,
     votesForClient,
     required,
-    refresh,
   };
 }

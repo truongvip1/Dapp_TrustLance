@@ -4,11 +4,22 @@ pragma solidity ^0.8.20;
 import "./FreelanceEscrow.sol";
 
 contract EscrowFactory {
+    /* =============================================================
+                                STORAGE
+       ============================================================= */
+
+    /// @notice DisputeMultiSig contract address (arbiter)
+    address public arbiter;
+
     /// @notice Danh sách tất cả job (escrow address)
     address[] public jobs;
 
     /// @notice Mapping client => list job của client
     mapping(address => address[]) public jobsByClient;
+
+    /* =============================================================
+                                EVENTS
+       ============================================================= */
 
     /// @notice Event để frontend index job
     event JobCreated(
@@ -19,22 +30,40 @@ contract EscrowFactory {
         uint256 timestamp
     );
 
+    /* =============================================================
+                              CONSTRUCTOR
+       ============================================================= */
+
+    /// @param _arbiter DisputeMultiSig contract address
+    constructor(address _arbiter) {
+        require(_arbiter != address(0), "Invalid arbiter");
+        arbiter = _arbiter;
+    }
+
+    /* =============================================================
+                              MAIN LOGIC
+       ============================================================= */
+
     /**
      * @notice Client tạo job mới
      * @param deadline timestamp deadline
      */
-    function createJob(uint256 deadline) external payable returns (address) {
+    function createJob(uint256 deadline)
+        external
+        payable
+        returns (address)
+    {
         require(msg.value > 0, "Amount must be > 0");
         require(deadline > block.timestamp, "Invalid deadline");
 
-        // Deploy escrow instance
         FreelanceEscrow escrow = new FreelanceEscrow();
 
-        // Init escrow (factory là msg.sender của constructor)
         escrow.init{value: msg.value}(
             msg.sender,
             deadline
         );
+
+        escrow.setArbiter(arbiter);
 
         address escrowAddr = address(escrow);
 
@@ -51,6 +80,10 @@ contract EscrowFactory {
 
         return escrowAddr;
     }
+
+    /* =============================================================
+                              VIEW FUNCTIONS
+       ============================================================= */
 
     /// @notice Tổng số job
     function totalJobs() external view returns (uint256) {

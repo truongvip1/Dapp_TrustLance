@@ -2,7 +2,8 @@ import { useArbitration } from "../hooks/useArbitration";
 
 export default function ArbiterPanel({
   multisig,
-  address,
+  escrowAddr,
+  address, // current wallet address
 }) {
   const {
     vote,
@@ -13,23 +14,23 @@ export default function ArbiterPanel({
     votesForFreelancer,
     votesForClient,
     required,
-  } = useArbitration(multisig, address);
+  } = useArbitration(multisig, escrowAddr, address);
 
   return (
-    <div className="border p-4 rounded mt-4 bg-yellow-50">
-      <h3 className="font-bold text-lg mb-2">
+    <div className="border p-4 rounded-xl mt-4 bg-yellow-50 space-y-3">
+      <h3 className="font-bold text-lg flex items-center gap-2">
         ⚖️ Arbiter Voting
       </h3>
 
-      {/* STATUS */}
+      {/* RESOLVED */}
       {resolved && (
-        <div className="p-2 bg-green-100 text-green-800 rounded mb-2">
+        <div className="p-2 bg-green-100 text-green-800 rounded">
           ✅ Dispute resolved
         </div>
       )}
 
       {/* VOTE PROGRESS */}
-      <div className="text-sm mb-3">
+      <div className="text-sm space-y-1">
         <p>
           Pay Freelancer:{" "}
           <b>
@@ -44,11 +45,11 @@ export default function ArbiterPanel({
         </p>
       </div>
 
-      {/* ACTIONS */}
+      {/* ACTION BUTTONS */}
       {!resolved && (
-        <div className="flex gap-3">
+        <div className="flex gap-3 pt-2">
           <button
-            className="btn-success"
+            className="btn-success flex-1"
             disabled={loading || hasVoted}
             onClick={() => vote(true)}
           >
@@ -56,7 +57,7 @@ export default function ArbiterPanel({
           </button>
 
           <button
-            className="btn-danger"
+            className="btn-danger flex-1"
             disabled={loading || hasVoted}
             onClick={() => vote(false)}
           >
@@ -67,13 +68,19 @@ export default function ArbiterPanel({
 
       {/* INFO */}
       {hasVoted && !resolved && (
-        <p className="text-sm mt-2 text-gray-600">
-          🗳️ You have already voted
+        <p className="text-sm text-gray-600">
+          🗳️ You have already voted on this dispute
+        </p>
+      )}
+
+      {loading && (
+        <p className="text-sm text-blue-600">
+          ⏳ Submitting vote...
         </p>
       )}
 
       {error && (
-        <p className="text-red-600 text-sm mt-2">
+        <p className="text-sm text-red-600">
           ❌ {error}
         </p>
       )}

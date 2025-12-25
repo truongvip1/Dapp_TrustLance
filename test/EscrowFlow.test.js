@@ -1,9 +1,10 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", function () {
+describe("Freelance Escrow + DisputeMultiSig – Multi-Escrow Test Suite", function () {
   let deployer, client, freelancer, arbiter1, arbiter2, arbiter3;
-  let factory, escrow, multisig;
+  let factory, multisig;
+  let escrow, escrowAddr;
 
   const REQUIRED_VOTES = 2;
   const ONE_DAY = 24 * 60 * 60;
@@ -13,7 +14,7 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
       await ethers.getSigners();
 
     /* --------------------------------------------------
-     * Deploy MultiSig
+     * Deploy DisputeMultiSig
      * -------------------------------------------------- */
     const DisputeMultiSig = await ethers.getContractFactory("DisputeMultiSig");
     multisig = await DisputeMultiSig.deploy(
@@ -23,10 +24,10 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
     await multisig.waitForDeployment();
 
     /* --------------------------------------------------
-     * Deploy Factory
+     * Deploy EscrowFactory
      * -------------------------------------------------- */
     const EscrowFactory = await ethers.getContractFactory("EscrowFactory");
-    factory = await EscrowFactory.deploy();
+    factory = await EscrowFactory.deploy(await multisig.getAddress());
     await factory.waitForDeployment();
 
     /* --------------------------------------------------
@@ -36,22 +37,21 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
     const deadline = block.timestamp + 3 * ONE_DAY;
 
     const tx = await factory
-    .connect(client)
-    .createJob(deadline, { value: ethers.parseEther("1") });
+      .connect(client)
+      .createJob(deadline, { value: ethers.parseEther("1") });
 
     const receipt = await tx.wait();
     const event = receipt.logs.find(
-    (l) => l.fragment?.name === "JobCreated"
+      (l) => l.fragment?.name === "JobCreated"
     );
 
-    const escrowAddress = event.args.escrow;
-    escrow = await ethers.getContractAt("FreelanceEscrow", escrowAddress);
+    // ⭐ CỰC KỲ QUAN TRỌNG (ethers v6)
+    escrowAddr = event.args.escrow;
 
-    /* --------------------------------------------------
-     * Link Escrow ↔ MultiSig
-     * -------------------------------------------------- */
-    await escrow.connect(client).setArbiter(await multisig.getAddress());
-    await multisig.setEscrow(escrowAddress);
+    escrow = await ethers.getContractAt(
+      "FreelanceEscrow",
+      escrowAddr
+    );
   });
 
   /* ==================================================
@@ -123,10 +123,11 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
 
     await escrow.connect(client).dispute();
 
-    await multisig.connect(arbiter1).vote(true);
-    await multisig.connect(arbiter2).vote(true);
+    await multisig.connect(arbiter1).vote(escrowAddr, true);
+    await multisig.connect(arbiter2).vote(escrowAddr, true);
 
-    expect(await multisig.resolved()).to.equal(true);
+    const [, , resolved] = await multisig.getVotes(escrowAddr);
+    expect(resolved).to.equal(true);
   });
 
   it("🧑‍⚖️ 2/3 arbiters vote → client refunded", async function () {
@@ -138,10 +139,11 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
 
     await escrow.connect(client).dispute();
 
-    await multisig.connect(arbiter1).vote(false);
-    await multisig.connect(arbiter2).vote(false);
+    await multisig.connect(arbiter1).vote(escrowAddr, false);
+    await multisig.connect(arbiter2).vote(escrowAddr, false);
 
-    expect(await multisig.resolved()).to.equal(true);
+    const [, , resolved] = await multisig.getVotes(escrowAddr);
+    expect(resolved).to.equal(true);
   });
 
   it("❌ Arbiter cannot vote twice", async function () {
@@ -153,10 +155,10 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
 
     await escrow.connect(client).dispute();
 
-    await multisig.connect(arbiter1).vote(true);
+    await multisig.connect(arbiter1).vote(escrowAddr, true);
 
     await expect(
-      multisig.connect(arbiter1).vote(true)
+      multisig.connect(arbiter1).vote(escrowAddr, true)
     ).to.be.revertedWith("Already voted");
   });
 
@@ -170,7 +172,7 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
     await escrow.connect(client).dispute();
 
     await expect(
-      multisig.connect(client).vote(true)
+      multisig.connect(client).vote(escrowAddr, true)
     ).to.be.revertedWith("Not an arbiter");
   });
 
@@ -183,11 +185,11 @@ describe("Freelance Escrow + DisputeMultiSig – Full Test Suite (Fixed)", funct
 
     await escrow.connect(client).dispute();
 
-    await multisig.connect(arbiter1).vote(true);
-    await multisig.connect(arbiter2).vote(true);
+    await multisig.connect(arbiter1).vote(escrowAddr, true);
+    await multisig.connect(arbiter2).vote(escrowAddr, true);
 
     await expect(
-      multisig.connect(arbiter3).vote(true)
+      multisig.connect(arbiter3).vote(escrowAddr, true)
     ).to.be.revertedWith("Dispute already resolved");
   });
 });

@@ -2,111 +2,109 @@
 pragma solidity ^0.8.20;
 
 /* ---------------------------------------------
- * Interface của FreelanceEscrow
+ * Interface Escrow
  * -------------------------------------------*/
 interface IFreelanceEscrow {
     function resolveDispute(bool payFreelancer) external;
 }
 
 /* ---------------------------------------------
- * DisputeMultiSig
+ * DisputeMultiSig – Multi Escrow
  * -------------------------------------------*/
 contract DisputeMultiSig {
     address[] public arbiters;
     mapping(address => bool) public isArbiter;
 
-    uint256 public required; // số phiếu cần để quyết định
+    uint256 public required;
 
-    address public escrow;   // escrow đang được phân xử
-    bool public resolved;
+    struct VoteState {
+        uint256 votesForFreelancer;
+        uint256 votesForClient;
+        bool resolved;
+        mapping(address => bool) hasVoted;
+    }
 
-    uint256 public votesForFreelancer;
-    uint256 public votesForClient;
-
-    mapping(address => bool) public hasVoted;
+    /// escrow => VoteState
+    mapping(address => VoteState) private disputes;
 
     /* ---------------------------------------------
      * Events
      * -------------------------------------------*/
-    event Voted(address indexed arbiter, bool payFreelancer);
-    event Resolved(bool payFreelancer);
+    event Voted(address indexed escrow, address indexed arbiter, bool payFreelancer);
+    event Resolved(address indexed escrow, bool payFreelancer);
 
-    /* ---------------------------------------------
-     * Modifiers
-     * -------------------------------------------*/
     modifier onlyArbiter() {
         require(isArbiter[msg.sender], "Not an arbiter");
         _;
     }
 
-    /* ---------------------------------------------
-     * Constructor
-     * -------------------------------------------*/
     constructor(address[] memory _arbiters, uint256 _required) {
         require(_arbiters.length > 0, "No arbiters");
-        require(
-            _required > 0 && _required <= _arbiters.length,
-            "Invalid required votes"
-        );
+        require(_required > 0 && _required <= _arbiters.length, "Invalid required");
 
         for (uint256 i = 0; i < _arbiters.length; i++) {
-            address arbiter = _arbiters[i];
-            require(arbiter != address(0), "Zero arbiter");
-            require(!isArbiter[arbiter], "Duplicate arbiter");
+            address a = _arbiters[i];
+            require(a != address(0), "Zero arbiter");
+            require(!isArbiter[a], "Duplicate arbiter");
 
-            arbiters.push(arbiter);
-            isArbiter[arbiter] = true;
+            arbiters.push(a);
+            isArbiter[a] = true;
         }
 
         required = _required;
     }
 
     /* ---------------------------------------------
-     * Set escrow (BẮT BUỘC PHẢI GỌI SAU DEPLOY)
+     * Vote on specific escrow
      * -------------------------------------------*/
-    function setEscrow(address _escrow) external {
-        require(escrow == address(0), "Escrow already set");
-        require(_escrow.code.length > 0, "Escrow must be a contract");
+    function vote(address escrow, bool payFreelancer) external {
+        require(isArbiter[msg.sender], "Not an arbiter");
 
-        escrow = _escrow;
-    }
+        VoteState storage v = disputes[escrow];
 
-    /* ---------------------------------------------
-     * Vote
-     * -------------------------------------------*/
-    function vote(bool payFreelancer) external onlyArbiter {
-        require(!resolved, "Dispute already resolved");
-        require(!hasVoted[msg.sender], "Already voted");
-        require(escrow != address(0), "Escrow not set");
+        require(!v.resolved, "Dispute already resolved");
+        require(!v.hasVoted[msg.sender], "Already voted");
 
-        hasVoted[msg.sender] = true;
+        v.hasVoted[msg.sender] = true;
 
         if (payFreelancer) {
-            votesForFreelancer++;
+            v.votesForFreelancer++;
         } else {
-            votesForClient++;
+            v.votesForClient++;
         }
 
-        emit Voted(msg.sender, payFreelancer);
-
-        /* -----------------------------------------
-         * Resolve if reached required votes
-         * ---------------------------------------*/
-        if (votesForFreelancer >= required) {
-            resolved = true;
+        if (v.votesForFreelancer >= required) {
+            v.resolved = true;
             IFreelanceEscrow(escrow).resolveDispute(true);
-            emit Resolved(true);
-        } else if (votesForClient >= required) {
-            resolved = true;
+        } 
+        else if (v.votesForClient >= required) {
+            v.resolved = true;
             IFreelanceEscrow(escrow).resolveDispute(false);
-            emit Resolved(false);
         }
     }
 
+
     /* ---------------------------------------------
-     * View helpers
+     * View helper for test / frontend
      * -------------------------------------------*/
-    function getArbiters() external view returns (address[] memory) {
-        return arbiters;
+    function getVotes(address escrow)
+        external
+        view
+        returns (
+            uint256 forFreelancer,
+            uint256 forClient,
+            bool resolved
+        )
+    {
+        VoteState storage v = disputes[escrow];
+        return (v.votesForFreelancer, v.votesForClient, v.resolved);
+    }
+
+    function hasVoted(address escrow, address arbiter)
+        external
+        view
+        returns (bool)
+    {
+        return disputes[escrow].hasVoted[arbiter];
     }
 }

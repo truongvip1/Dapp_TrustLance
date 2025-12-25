@@ -10,7 +10,7 @@ async function main() {
   console.log("🚀 Deploying with:", deployer.address);
 
   /* --------------------------------------------------
-   * 1. Deploy DisputeMultiSig
+   * 1. Deploy DisputeMultiSig (multi-escrow)
    * -------------------------------------------------- */
   const arbiters = [
     arbiter1.address,
@@ -24,24 +24,24 @@ async function main() {
   await multisig.waitForDeployment();
 
   const multisigAddress = await multisig.getAddress();
-  console.log("✅ MultiSig deployed:", multisigAddress);
+  console.log("✅ DisputeMultiSig deployed:", multisigAddress);
 
   /* --------------------------------------------------
-   * 2. Deploy EscrowFactory
+   * 2. Deploy EscrowFactory (PASS ARBITER)
    * -------------------------------------------------- */
   const EscrowFactory = await ethers.getContractFactory("EscrowFactory");
-  const factory = await EscrowFactory.deploy();
+  const factory = await EscrowFactory.deploy(multisigAddress);
   await factory.waitForDeployment();
 
   const factoryAddress = await factory.getAddress();
   console.log("✅ EscrowFactory deployed:", factoryAddress);
 
   /* --------------------------------------------------
-   * 3. Create demo escrow job
+   * 3. (OPTIONAL) Create demo job
    * -------------------------------------------------- */
   const deadline =
     Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // +7 days
-  const amount = ethers.parseEther("100");
+  const amount = ethers.parseEther("1");
 
   const tx = await factory.createJob(deadline, { value: amount });
   const receipt = await tx.wait();
@@ -58,37 +58,14 @@ async function main() {
   console.log("📄 Demo Job created:", escrowAddress);
 
   /* --------------------------------------------------
-   * 4. Set arbiter (multisig) for escrow
-   * -------------------------------------------------- */
-  const escrow = await ethers.getContractAt(
-    "FreelanceEscrow",
-    escrowAddress
-  );
-
-  await (await escrow.setArbiter(multisigAddress)).wait();
-  console.log("🧑‍⚖️ Arbiter set for demo job");
-
-  /* --------------------------------------------------
-   * 5. 🔥 LINK ESCROW → MULTISIG (FIX QUAN TRỌNG)
-   * -------------------------------------------------- */
-  await (await multisig.setEscrow(escrowAddress)).wait();
-  console.log("🔗 Escrow linked to MultiSig");
-
-  /* --------------------------------------------------
-   * 6. Safety check (optional but recommended)
-   * -------------------------------------------------- */
-  const code = await ethers.provider.getCode(multisigAddress);
-  if (code === "0x") {
-    throw new Error("MultiSig is not a contract");
-  }
-
-  /* --------------------------------------------------
-   * 7. Save deployment info
+   * 4. Save deployment info
    * -------------------------------------------------- */
   const deployment = {
     factory: factoryAddress,
     multisig: multisigAddress,
-    escrow: escrowAddress,
+    demoEscrow: escrowAddress,
+    arbiters,
+    required,
   };
 
   const outDir = path.join(__dirname, "../deployments");
@@ -104,6 +81,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  console.error("❌ Deployment failed");
   console.error(error);
   process.exitCode = 1;
 });
