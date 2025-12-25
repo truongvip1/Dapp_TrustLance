@@ -238,11 +238,14 @@ describe("FreelanceEscrow - Comprehensive Tests", function () {
       );
     });
 
-    it("❌ Cannot dispute before deadline (after submission)", async function () {
+    it("✅ Client can dispute before deadline (work doesn't meet requirements)", async function () {
       await escrow.connect(freelancer).submitWork();
-      await expect(escrow.connect(client).dispute()).to.be.revertedWith(
-        "Deadline not reached"
-      );
+
+      // Client can dispute immediately after submission, no need to wait for deadline
+      await expect(escrow.connect(client).dispute())
+        .to.emit(escrow, "DisputeOpened");
+
+      expect(await escrow.status()).to.equal(3); // Status.Disputed = 3
     });
 
     it("✅ Client can dispute after deadline", async function () {

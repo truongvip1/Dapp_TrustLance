@@ -90,13 +90,16 @@ describe("Freelance Escrow + DisputeMultiSig – Multi-Escrow Test Suite", funct
     ).to.be.reverted;
   });
 
-  it("❌ Cannot dispute before deadline", async function () {
+  it("✅ Can dispute before deadline (work doesn't meet requirements)", async function () {
     await escrow.connect(freelancer).acceptJob();
     await escrow.connect(freelancer).submitWork();
 
+    // Client can dispute anytime after submission
     await expect(
       escrow.connect(client).dispute()
-    ).to.be.revertedWith("Deadline not reached");
+    ).to.not.be.reverted;
+
+    expect(await escrow.status()).to.equal(3); // Disputed
   });
 
   it("⚠️ Client opens dispute after deadline", async function () {

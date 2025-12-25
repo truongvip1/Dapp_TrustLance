@@ -136,10 +136,10 @@ contract FreelanceEscrow {
     }
 
 
-    /// @notice Client mở dispute sau deadline
+    /// @notice Client có thể mở dispute bất kỳ lúc nào sau khi freelancer submit work
+    /// @dev Cho phép dispute ngay cả khi chưa đến deadline (VD: work không đạt yêu cầu)
     function dispute() external onlyClient {
         require(status == Status.Submitted, "Not submitted");
-        require(block.timestamp > deadline, "Deadline not reached");
 
         status = Status.Disputed;
         emit DisputeOpened();
