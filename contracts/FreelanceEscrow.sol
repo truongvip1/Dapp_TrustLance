@@ -125,12 +125,14 @@ contract FreelanceEscrow {
                         CLIENT FLOW
        =====================================================*/
 
+    /// @notice Client có thể approve work bất kỳ lúc nào sau khi freelancer submit
+    /// @dev Cho phép client chấp nhận thanh toán ngay cả khi trễ deadline
     function approveWork() external onlyClient {
-    require(status == Status.Submitted, "Not submitted");
-    require(block.timestamp <= deadline, "Deadline passed");
+        require(status == Status.Submitted, "Not submitted");
 
-    status = Status.Released;
-    _payFreelancer();
+        status = Status.Released;
+        _payFreelancer();
+        emit Released(freelancer, amount);
     }
 
 

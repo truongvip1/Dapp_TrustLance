@@ -188,8 +188,19 @@ export default function JobDetail({
           )}
 
           {isClient && isSubmitted && (
-            <div className="flex flex-col sm:flex-row gap-3">
-              {!deadlinePassed && (
+            <div className="space-y-3">
+              {/* Thông báo khi trễ deadline */}
+              {deadlinePassed && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  <p className="font-medium">⏰ Freelancer đã submit trễ deadline</p>
+                  <p className="text-amber-600 mt-1">
+                    Bạn có thể chấp nhận thanh toán hoặc mở tranh chấp để trọng tài xử lý.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                {/* Nút Approve - luôn hiển thị khi work đã submit */}
                 <button
                   disabled={loading}
                   className="btn-success flex-1 py-3"
@@ -197,25 +208,40 @@ export default function JobDetail({
                     handle("APPROVE", () => escrow.approveWork())
                   }
                 >
-                  <span className="flex items-center justify-center gap-2">
-                    ✅ Approve & Release
-                  </span>
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Processing...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      ✅ Approve & Release
+                    </span>
+                  )}
                 </button>
-              )}
 
-              {deadlinePassed && (
-                <button
-                  disabled={loading}
-                  className="btn-warning flex-1 py-3"
-                  onClick={() =>
-                    handle("DISPUTE", () => escrow.dispute())
-                  }
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    ⚠️ Open Dispute
-                  </span>
-                </button>
-              )}
+                {/* Nút Dispute - chỉ hiển thị khi deadline đã qua */}
+                {deadlinePassed && (
+                  <button
+                    disabled={loading}
+                    className="btn-warning flex-1 py-3"
+                    onClick={() =>
+                      handle("DISPUTE", () => escrow.dispute())
+                    }
+                  >
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        Processing...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        ⚠️ Open Dispute
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

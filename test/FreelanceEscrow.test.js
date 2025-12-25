@@ -172,13 +172,26 @@ describe("FreelanceEscrow - Comprehensive Tests", function () {
       ).to.be.revertedWith("Not client");
     });
 
-    it("❌ Cannot approve work after deadline", async function () {
+    it("✅ Client can approve work even after deadline (late submission)", async function () {
+      // Move time past deadline
       await ethers.provider.send("evm_increaseTime", [4 * ONE_DAY]);
       await ethers.provider.send("evm_mine");
 
-      await expect(
-        escrow.connect(client).approveWork()
-      ).to.be.revertedWith("Deadline passed");
+      const freelancerBalanceBefore = await ethers.provider.getBalance(
+        freelancer.address
+      );
+
+      // Client can still approve despite deadline passed
+      await escrow.connect(client).approveWork();
+
+      expect(await escrow.status()).to.equal(4); // Status.Released = 4
+
+      const freelancerBalanceAfter = await ethers.provider.getBalance(
+        freelancer.address
+      );
+      expect(freelancerBalanceAfter - freelancerBalanceBefore).to.equal(
+        JOB_VALUE
+      );
     });
 
     it("❌ Random user cannot approve work", async function () {
