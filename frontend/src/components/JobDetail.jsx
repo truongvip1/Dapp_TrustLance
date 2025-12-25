@@ -81,117 +81,154 @@ export default function JobDetail({
   }
 
   return (
-    <div className="border rounded-xl p-6 space-y-4">
-      <h2 className="text-xl font-bold">Job Detail</h2>
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+        <h2 className="text-xl font-bold text-gray-800">📋 Job Detail</h2>
+      </div>
 
-      {/* STATUS */}
-      <div className="flex gap-2 items-center">
-        <span className={`px-2 py-1 rounded ${s.color}`}>
-          {s.label}
-        </span>
-
-        {deadlinePassed && (
-          <span className="px-2 py-1 bg-red-100 text-red-700 rounded">
-            Deadline Passed
+      <div className="p-6 space-y-5">
+        {/* STATUS */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${s.color}`}>
+            {s.label}
           </span>
+
+          {deadlinePassed && job.status < 4 && (
+            <span className="px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm font-medium animate-pulse">
+              ⏰ Deadline Passed
+            </span>
+          )}
+        </div>
+
+        {/* INFO */}
+        <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between py-2 border-b border-gray-200">
+            <span className="text-gray-500 font-medium">👤 Client</span>
+            <span className="font-mono text-sm bg-white px-3 py-1 rounded-lg border">
+              {short(job.client)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-b border-gray-200">
+            <span className="text-gray-500 font-medium">💼 Freelancer</span>
+            <span className="font-mono text-sm bg-white px-3 py-1 rounded-lg border">
+              {job.freelancer === ethers.ZeroAddress
+                ? <span className="text-gray-400 italic">Not accepted</span>
+                : short(job.freelancer)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-b border-gray-200">
+            <span className="text-gray-500 font-medium">💰 Amount</span>
+            <span className="text-lg font-bold text-emerald-600">
+              {ethers.formatEther(job.amount)} ETH
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-2 border-b border-gray-200">
+            <span className="text-gray-500 font-medium">📅 Deadline</span>
+            <span className="text-sm font-medium text-gray-700">
+              {new Date(job.deadline * 1000).toLocaleString()}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-2">
+            <span className="text-gray-400 text-sm">⛓ Chain time</span>
+            <span className="text-xs text-gray-400">
+              {chainNow
+                ? new Date(chainNow * 1000).toLocaleString()
+                : "Loading..."}
+            </span>
+          </div>
+        </div>
+
+        {/* ACTIONS */}
+        <div className="space-y-3">
+          {isOpen && (
+            <button
+              disabled={loading}
+              className="btn-primary w-full py-3"
+              onClick={() =>
+                handle("ACCEPT_JOB", () => escrow.acceptJob())
+              }
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Processing...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  ✋ Accept Job
+                </span>
+              )}
+            </button>
+          )}
+
+          {isFreelancer && job.status === 1 && (
+            <button
+              disabled={loading}
+              className="btn-success w-full py-3"
+              onClick={() =>
+                handle("SUBMIT_WORK", () => escrow.submitWork())
+              }
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Submitting...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  📤 Submit Work
+                </span>
+              )}
+            </button>
+          )}
+
+          {isClient && isSubmitted && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!deadlinePassed && (
+                <button
+                  disabled={loading}
+                  className="btn-success flex-1 py-3"
+                  onClick={() =>
+                    handle("APPROVE", () => escrow.approveWork())
+                  }
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    ✅ Approve & Release
+                  </span>
+                </button>
+              )}
+
+              {deadlinePassed && (
+                <button
+                  disabled={loading}
+                  className="btn-warning flex-1 py-3"
+                  onClick={() =>
+                    handle("DISPUTE", () => escrow.dispute())
+                  }
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    ⚠️ Open Dispute
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ARBITER */}
+        {isArbiter && isDisputed && (
+          <ArbiterPanel
+            multisig={multisig}
+            escrowAddr={job.address}
+            address={address}
+          />
         )}
       </div>
-
-      {/* INFO */}
-      <div className="text-sm space-y-1">
-        <p>
-          <b>Client:</b>{" "}
-          <span className="font-mono">{short(job.client)}</span>
-        </p>
-
-        <p>
-          <b>Freelancer:</b>{" "}
-          <span className="font-mono">
-            {job.freelancer === ethers.ZeroAddress
-              ? "Not accepted"
-              : short(job.freelancer)}
-          </span>
-        </p>
-
-        <p>
-          <b>Amount:</b>{" "}
-          {ethers.formatEther(job.amount)} ETH
-        </p>
-
-        <p>
-          <b>Deadline:</b>{" "}
-          {new Date(job.deadline * 1000).toLocaleString()}
-        </p>
-
-        <p className="text-xs text-gray-500">
-          ⛓ Chain time:{" "}
-          {chainNow
-            ? new Date(chainNow * 1000).toLocaleString()
-            : "Loading..."}
-        </p>
-      </div>
-
-      {/* ACTIONS */}
-      <div className="space-y-2">
-        {isOpen && (
-          <button
-            disabled={loading}
-            className="btn-primary"
-            onClick={() =>
-              handle("ACCEPT_JOB", () => escrow.acceptJob())
-            }
-          >
-            Accept Job
-          </button>
-        )}
-
-        {isFreelancer && job.status === 1 && (
-          <button
-            disabled={loading}
-            className="btn-primary"
-            onClick={() =>
-              handle("SUBMIT_WORK", () => escrow.submitWork())
-            }
-          >
-            Submit Work
-          </button>
-        )}
-
-        {isClient && isSubmitted && (
-          <>
-            {!deadlinePassed && (
-              <button
-                className="bg-blue-100 px-3 py-2 rounded"
-                onClick={() =>
-                  handle("APPROVE", () => escrow.approveWork())
-                }
-              >
-                Approve & Release
-              </button>
-            )}
-
-            {deadlinePassed && (
-              <button
-                className="bg-red-100 px-3 py-2 rounded"
-                onClick={() =>
-                  handle("DISPUTE", () => escrow.dispute())
-                }
-              >
-                Open Dispute
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ARBITER */}
-      {isArbiter && isDisputed && (
-        <ArbiterPanel
-          multisig={multisig}
-          escrowAddr={job.address}
-          address={address}
-        />
-      )}
     </div>
   );
 }
