@@ -73,13 +73,17 @@ contract DisputeMultiSig {
             v.votesForClient++;
         }
 
+        emit Voted(escrow, msg.sender, payFreelancer);
+
         if (v.votesForFreelancer >= required) {
             v.resolved = true;
             IFreelanceEscrow(escrow).resolveDispute(true);
+            emit Resolved(escrow, true);
         } 
         else if (v.votesForClient >= required) {
             v.resolved = true;
             IFreelanceEscrow(escrow).resolveDispute(false);
+            emit Resolved(escrow, false);
         }
     }
 
@@ -106,5 +110,10 @@ contract DisputeMultiSig {
         returns (bool)
     {
         return disputes[escrow].hasVoted[arbiter];
+    }
+
+    /// @notice Get all arbiters (for frontend)
+    function getArbiters() external view returns (address[] memory) {
+        return arbiters;
     }
 }

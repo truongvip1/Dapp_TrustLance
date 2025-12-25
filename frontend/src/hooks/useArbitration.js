@@ -13,20 +13,25 @@ export function useArbitration(multisig, escrowAddr, address) {
   const [required, setRequired] = useState(0);
 
   const load = useCallback(async () => {
-    if (!multisig || !address) return;
+    if (!multisig || !address || !escrowAddr) return;
 
     try {
       const addr = ethers.getAddress(address);
 
+      // Check if this arbiter has voted
       setHasVoted(await multisig.hasVoted(escrowAddr, addr));
-      setResolved(await multisig.resolved(escrowAddr));
 
-      const [f, c, r] = await multisig.getVotes(escrowAddr);
-      setVotesForFreelancer(Number(f));
-      setVotesForClient(Number(c));
-      setRequired(Number(r));
+      // getVotes returns: (forFreelancer, forClient, resolved)
+      const [forFreelancer, forClient, isResolved] = await multisig.getVotes(escrowAddr);
+      setVotesForFreelancer(Number(forFreelancer));
+      setVotesForClient(Number(forClient));
+      setResolved(isResolved);
+
+      // Get required votes count
+      const req = await multisig.required();
+      setRequired(Number(req));
     } catch (e) {
-      console.error(e);
+      console.error("useArbitration load error:", e);
     }
   }, [multisig, escrowAddr, address]);
 
