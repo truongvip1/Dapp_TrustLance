@@ -238,7 +238,7 @@ export default function JobDetail({
                   disabled={loading}
                   className="btn-danger flex-1 py-3"
                   onClick={() =>
-                    handle("DISPUTE", () => escrow.dispute())
+                    handle("DISPUTE", () => escrow.disputeByClient())
                   }
                 >
                   {loading ? (
@@ -253,6 +253,36 @@ export default function JobDetail({
                   )}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* FREELANCER DISPUTE - Chỉ hiển thị khi đã submit và deadline đã qua */}
+          {isFreelancer && isSubmitted && deadlinePassed && (
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg text-sm border bg-amber-50 border-amber-200 text-amber-800">
+                <p className="font-medium">⏰ Deadline đã qua mà client chưa phản hồi</p>
+                <p className="text-amber-600 mt-1">
+                  Bạn có thể mở tranh chấp để trọng tài xem xét và giải quyết.
+                </p>
+              </div>
+              <button
+                disabled={loading}
+                className="btn-danger w-full py-3"
+                onClick={() =>
+                  handle("FREELANCER_DISPUTE", () => escrow.disputeByFreelancer())
+                }
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    Processing...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    ⚠️ Open Dispute (No Response)
+                  </span>
+                )}
+              </button>
             </div>
           )}
         </div>
